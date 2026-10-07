@@ -30,12 +30,12 @@ export const registerUser = async (data) => {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  const user = await User.create({
-    name,
-    email,
-    password: hashedPassword,
-    role: "customer",
-  });
+ const user = await User.create({
+  name,
+  email,
+  password: hashedPassword,
+  role: "customer",
+});
 
   const token = generateToken(user);
 

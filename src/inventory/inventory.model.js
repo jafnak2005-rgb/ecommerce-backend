@@ -2,17 +2,11 @@ import mongoose from "mongoose";
 
 const inventorySchema = new mongoose.Schema(
   {
-    product: {
+    productVariant: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Product",
+      ref: "ProductVariant",
       required: true,
-    },
-
-    quantity: {
-      type: Number,
-      required: true,
-      min: 0,
-      default: 0,
+      unique: true,
     },
 
     reserved: {
@@ -26,6 +20,9 @@ const inventorySchema = new mongoose.Schema(
   }
 );
 
-const Inventory = mongoose.model("Inventory", inventorySchema);
+const Inventory = mongoose.model(
+  "Inventory",
+  inventorySchema
+);
 
 export default Inventory;

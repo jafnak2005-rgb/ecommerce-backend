@@ -3,34 +3,58 @@ import express from "express";
 import {
   create,
   getAll,
-  getByProduct,
+  getByVariant,
   update,
   remove,
 } from "./inventory.controller.js";
 
 import { verifyToken } from "../middleware/auth.middleware.js";
+import { adminOnly } from "../middleware/admin.middleware.js";
 
 const inventoryRouter = express.Router();
 
-inventoryRouter.post("/", verifyToken, create);
 
-inventoryRouter.get("/", verifyToken, getAll);
-
-inventoryRouter.get(
-  "/:productId",
+// Admin - create inventory
+inventoryRouter.post(
+  "/",
   verifyToken,
-  getByProduct
+  adminOnly,
+  create
 );
 
-inventoryRouter.put(
-  "/:productId",
+
+// Admin - view inventory
+inventoryRouter.get(
+  "/",
   verifyToken,
+  adminOnly,
+  getAll
+);
+
+
+// Admin - get inventory by variant
+inventoryRouter.get(
+  "/:variantId",
+  verifyToken,
+  adminOnly,
+  getByVariant
+);
+
+
+// Admin - update stock
+inventoryRouter.put(
+  "/:variantId",
+  verifyToken,
+  adminOnly,
   update
 );
 
+
+// Admin - delete inventory
 inventoryRouter.delete(
-  "/:productId",
+  "/:variantId",
   verifyToken,
+  adminOnly,
   remove
 );
 

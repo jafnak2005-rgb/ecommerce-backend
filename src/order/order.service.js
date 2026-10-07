@@ -1,15 +1,10 @@
 import Order from "./order.model.js";
+import ProductVariant from "../productvariant/productvariant.model.js";
+import Cart from "../cart/cart.model.js";
 
+// CREATE ORDER
 export const createOrder = async (userId, data) => {
-  const {
-    items,
-    shippingAddress,
-    paymentMethod,
-  } = data;
-
-  if (!items || items.length === 0) {
-    throw new Error("Order items are required");
-  }
+  const { shippingAddress, paymentMethod } = data;
 
   if (!shippingAddress) {
     throw new Error("Shipping address is required");
@@ -19,25 +14,57 @@ export const createOrder = async (userId, data) => {
     throw new Error("Payment method is required");
   }
 
-  let subtotal = 0;
+  if (!["COD", "ONLINE"].includes(paymentMethod)) {
+    throw new Error("Invalid payment method");
+  }
 
-  const orderItems = items.map((item) => {
-    const itemSubtotal = item.price * item.quantity;
+  const cart = await Cart.findOne({ user: userId });
+
+  if (!cart || cart.items.length === 0) {
+    throw new Error("Cart is empty");
+  }
+
+  let subtotal = 0;
+  const orderItems = [];
+
+  // Validate stock and calculate price from database
+  for (const item of cart.items) {
+    const variant = await ProductVariant.findById(item.productVariant);
+
+    if (!variant) {
+      throw new Error("Product variant not found");
+    }
+
+    if (item.quantity > variant.stock) {
+      throw new Error(`Insufficient stock for ${variant.sku}`);
+    }
+
+    const price = variant.price;
+    const itemSubtotal = price * item.quantity;
 
     subtotal += itemSubtotal;
 
-    return {
-      productVariant: item.productVariant,
+    orderItems.push({
+      productVariant: variant._id,
       quantity: item.quantity,
-      price: item.price,
+      price,
       subtotal: itemSubtotal,
-    };
-  });
+    });
+  }
 
   const shippingCharge = subtotal >= 1000 ? 0 : 50;
-
   const totalAmount = subtotal + shippingCharge;
 
+  // Reduce stock
+  for (const item of cart.items) {
+    const variant = await ProductVariant.findById(item.productVariant);
+
+    variant.stock -= item.quantity;
+
+    await variant.save();
+  }
+
+  // Create order
   const order = await Order.create({
     user: userId,
     items: orderItems,
@@ -48,10 +75,15 @@ export const createOrder = async (userId, data) => {
     paymentMethod,
   });
 
+  // Clear cart
+  cart.items = [];
+  await cart.save();
+
   return order;
 };
 
 
+// GET ALL ORDERS
 export const getOrders = async (userId) => {
   return await Order.find({ user: userId })
     .populate("items.productVariant")
@@ -59,20 +91,16 @@ export const getOrders = async (userId) => {
 };
 
 
+// GET SINGLE ORDER
 export const getOrderById = async (userId, orderId) => {
-  const order = await Order.findOne({
+  return await Order.findOne({
     _id: orderId,
     user: userId,
   }).populate("items.productVariant");
-
-  if (!order) {
-    throw new Error("Order not found");
-  }
-
-  return order;
 };
 
 
+// CANCEL ORDER + RESTORE STOCK
 export const cancelOrder = async (userId, orderId) => {
   const order = await Order.findOne({
     _id: orderId,
@@ -84,11 +112,22 @@ export const cancelOrder = async (userId, orderId) => {
   }
 
   if (
-    ["Packed", "Shipped", "Delivered", "Cancelled"].includes(
-      order.status
-    )
+    ["Packed", "Shipped", "Delivered", "Cancelled"].includes(order.status)
   ) {
     throw new Error("Order cannot be cancelled");
+  }
+
+  // Restore stock
+  for (const item of order.items) {
+    const variant = await ProductVariant.findById(
+      item.productVariant
+    );
+
+    if (variant) {
+      variant.stock += item.quantity;
+
+      await variant.save();
+    }
   }
 
   order.status = "Cancelled";
