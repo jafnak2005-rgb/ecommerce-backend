@@ -2,7 +2,6 @@
   "name": "ecommerce-backend",
   "private": true,
   "type": "module",
-
   "version": "0.0.0",
   "scripts": {
     "start": "node server.js",
@@ -13,6 +12,7 @@
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
     "dotenv": "^18.0.5",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",

@@ -2,7 +2,12 @@ import Cart from "./cart.model.js";
 
 export const getCart = async (userId) => {
   let cart = await Cart.findOne({ user: userId })
-    .populate("items.productVariant");
+    .populate({
+      path: "items.productVariant",
+      populate: {
+        path: "product",
+      },
+    });
 
   if (!cart) {
     cart = await Cart.create({
@@ -13,7 +18,6 @@ export const getCart = async (userId) => {
 
   return cart;
 };
-
 
 export const addToCart = async (userId, data) => {
   const { productVariant, quantity } = data;
@@ -57,7 +61,6 @@ export const addToCart = async (userId, data) => {
   return cart;
 };
 
-
 export const updateCartItem = async (
   userId,
   itemId,
@@ -82,7 +85,6 @@ export const updateCartItem = async (
   return cart;
 };
 
-
 export const removeFromCart = async (
   userId,
   itemId
@@ -105,7 +107,6 @@ export const removeFromCart = async (
 
   return cart;
 };
-
 
 export const clearCart = async (userId) => {
   const cart = await Cart.findOne({ user: userId });
