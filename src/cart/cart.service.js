@@ -1,19 +1,51 @@
+
 import Cart from "./cart.model.js";
+import ProductVariant from "../productvariant/productvariant.model.js";
+
+const getPopulatedCart = async (userId) => {
+  return Cart.findOne({ user: userId }).populate({
+    path: "items.productVariant",
+    populate: {
+      path: "product",
+    },
+  });
+};
+
+const validateQuantity = (quantity) => {
+  if (
+    !Number.isInteger(quantity) ||
+    quantity < 1
+  ) {
+    throw new Error("Quantity must be a positive integer");
+  }
+};
+
+const checkStock = async (variantId, quantity) => {
+  const variant = await ProductVariant.findById(variantId);
+
+  if (!variant) {
+    throw new Error("Product variant not found");
+  }
+
+  if (Number(variant.stockQuantity) < quantity) {
+    throw new Error(
+      `Only ${variant.stockQuantity} items are available in stock`
+    );
+  }
+
+  return variant;
+};
 
 export const getCart = async (userId) => {
-  let cart = await Cart.findOne({ user: userId })
-    .populate({
-      path: "items.productVariant",
-      populate: {
-        path: "product",
-      },
-    });
+  let cart = await getPopulatedCart(userId);
 
   if (!cart) {
     cart = await Cart.create({
       user: userId,
       items: [],
     });
+
+    cart = await getPopulatedCart(userId);
   }
 
   return cart;
@@ -22,43 +54,41 @@ export const getCart = async (userId) => {
 export const addToCart = async (userId, data) => {
   const { productVariant, quantity } = data;
 
-  if (!productVariant || !quantity) {
-    throw new Error("Product variant and quantity are required");
+  if (!productVariant || quantity === undefined) {
+    throw new Error(
+      "Product variant and quantity are required"
+    );
   }
 
+  validateQuantity(quantity);
+
   let cart = await Cart.findOne({ user: userId });
+
+  const existingItem = cart?.items.find(
+    (item) =>
+      item.productVariant.toString() ===
+      String(productVariant)
+  );
+
+  const finalQuantity =
+    (existingItem?.quantity || 0) + quantity;
+
+  await checkStock(productVariant, finalQuantity);
 
   if (!cart) {
     cart = await Cart.create({
       user: userId,
-      items: [
-        {
-          productVariant,
-          quantity,
-        },
-      ],
+      items: [{ productVariant, quantity }],
     });
-
-    return cart;
-  }
-
-  const existingItem = cart.items.find(
-    (item) =>
-      item.productVariant.toString() === productVariant
-  );
-
-  if (existingItem) {
-    existingItem.quantity += quantity;
+  } else if (existingItem) {
+    existingItem.quantity = finalQuantity;
+    await cart.save();
   } else {
-    cart.items.push({
-      productVariant,
-      quantity,
-    });
+    cart.items.push({ productVariant, quantity });
+    await cart.save();
   }
 
-  await cart.save();
-
-  return cart;
+  return getPopulatedCart(userId);
 };
 
 export const updateCartItem = async (
@@ -66,6 +96,8 @@ export const updateCartItem = async (
   itemId,
   quantity
 ) => {
+  validateQuantity(quantity);
+
   const cart = await Cart.findOne({ user: userId });
 
   if (!cart) {
@@ -78,11 +110,13 @@ export const updateCartItem = async (
     throw new Error("Cart item not found");
   }
 
+  await checkStock(item.productVariant, quantity);
+
   item.quantity = quantity;
 
   await cart.save();
 
-  return cart;
+  return getPopulatedCart(userId);
 };
 
 export const removeFromCart = async (
@@ -105,7 +139,7 @@ export const removeFromCart = async (
 
   await cart.save();
 
-  return cart;
+  return getPopulatedCart(userId);
 };
 
 export const clearCart = async (userId) => {
@@ -119,5 +153,5 @@ export const clearCart = async (userId) => {
 
   await cart.save();
 
-  return cart;
+  return getPopulatedCart(userId);
 };
